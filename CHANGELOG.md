@@ -8,7 +8,9 @@ Notable changes to lawnchy. The format follows [Keep a Changelog](https://keepac
 
 - Finds every git repository under a directory and shows each one's trunk, with other worktrees and branches as sub-rows
 - Separate status and sync columns, covering working tree changes and upstream state
+- A compact sync column, using `✓`, `—`, `✗` and ahead/behind counts
 - Folding, keyboard navigation, and rescanning with `r`
+- Repository names in color, with the owner folder in the default text color and any folders above it dimmed
 - Filtering with `/`, by regular expression or plain string
 - Hiding repos with nothing to act on with `b`
 - Opening the highlighted row in lazygit with `Enter` or `o`

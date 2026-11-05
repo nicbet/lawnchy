@@ -6,7 +6,7 @@ import { testRender } from "@opentui/react/test-utils"
 import { App } from "../src/App.tsx"
 import type { Agent, AgentConfig, LaunchableConfig } from "../src/config.ts"
 import type { Branch, Repo, Sync } from "../src/git.ts"
-import { buildRows, COLORS, columnWidths, compileFilter, fit, isBoring, scrollOffset, shortenStart, spreadEvenly } from "../src/rows.ts"
+import { buildRows, COLORS, columnWidths, compileFilter, fit, isBoring, nameParts, type Row, scrollOffset, shortenStart, spreadEvenly } from "../src/rows.ts"
 import { makeRepo, makeTemp, sh } from "./helpers.ts"
 
 // Git finishes outside any act() scope, so React would warn about every status update.
@@ -64,7 +64,7 @@ test("renders repos with worktree and branch sub-rows, and folds them", async ()
   expect(frame).toContain("2 repos")
   expect(frame).toContain("▾ alpha")
   expect(frame).toMatch(/├─ worktree \.\.\/alpha-wt\s+wt-branch\s+\?1/)
-  expect(frame).toMatch(/└─ branch\s+idle\s+no upstream/)
+  expect(frame).toMatch(/└─ branch\s+idle\s+—/)
   expect(frame).toMatch(/group\/beta\s+main\s+~1/)
   // Repos with no extra worktrees or branches have no children, and the current
   // branch of the main checkout lives on the repo row rather than a sub-row.
@@ -97,7 +97,7 @@ test("keeps the trunk on the repo row when the checkout is on another branch", a
 
   setup = await testRender(<App root={dir} />, { width: 110, height: 12 })
   const frame = await waitForFrame((f) => f.includes("feature") && !f.includes("scanning"))
-  expect(frame).toMatch(/▾ repo\s+main\s+no upstream/)
+  expect(frame).toMatch(/▾ repo\s+main\s+—/)
   expect(frame).toMatch(/└─ worktree \.\s+feature\s+~1/)
   expect(frame).toContain(`not checked out  ${repo}`)
 })
@@ -152,14 +152,40 @@ test("sync states use the same text and colours on checkouts and branches", () =
     return { checkout: repoRow!.sync, branch: branchRow!.sync }
   }
 
-  const inSync = { text: "✓ in sync", color: COLORS.ok }
+  const inSync = { text: "✓", color: COLORS.ok }
   expect(rowsFor(sync({}))).toEqual({ checkout: inSync, branch: inSync })
-  const none = { text: "no upstream", color: COLORS.warn }
+  const none = { text: "—", color: COLORS.dim }
   expect(rowsFor(sync({ upstream: null }))).toEqual({ checkout: none, branch: none })
-  const gone = { text: "upstream gone", color: COLORS.bad }
+  const gone = { text: "✗", color: COLORS.bad }
   expect(rowsFor(sync({ gone: true }))).toEqual({ checkout: gone, branch: gone })
   const arrows = { text: "↑2 ↓1", color: COLORS.info }
   expect(rowsFor(sync({ ahead: 2, behind: 1 }))).toEqual({ checkout: arrows, branch: arrows })
+})
+
+test("the detail line puts sync problems into words", () => {
+  const detailsFor = (sync: Sync, kind: "ok" | "idle" = "ok") => {
+    const status =
+      kind === "idle"
+        ? ({ kind, sync } as const)
+        : ({ kind, branch: "main", oid: "abc", staged: 0, modified: 0, untracked: 0, conflicted: 0, sync } as const)
+    const repo: Repo = {
+      path: "/r/a",
+      branch: "main",
+      statusPath: "/r/a",
+      status,
+      worktrees: [],
+      branches: [{ name: "x", worktreePath: null, sync }],
+    }
+    const [repoRow, branchRow] = buildRows([repo], "/r", new Set())
+    return [repoRow!.detail.text, branchRow!.detail.text]
+  }
+  const sync = { upstream: "origin/x", gone: false, ahead: 0, behind: 0 }
+
+  expect(detailsFor(sync)).toEqual(["/r/a", "x → origin/x"])
+  expect(detailsFor({ ...sync, upstream: null })).toEqual(["/r/a", "x has no upstream"])
+  expect(detailsFor({ ...sync, gone: true })).toEqual(["upstream gone  /r/a", "x → origin/x (gone)"])
+  expect(detailsFor(sync, "idle")[0]).toBe("not checked out  /r/a")
+  expect(detailsFor({ ...sync, gone: true }, "idle")[0]).toBe("not checked out, upstream gone  /r/a")
 })
 
 test("a trunk that isn't checked out has a blank status and shows its sync state", () => {
@@ -765,6 +791,80 @@ test("scrollOffset keeps the selection visible and doesn't overscroll", () => {
   expect(scrollOffset(0, 7, 5, 20)).toBe(3)
   expect(scrollOffset(10, 4, 5, 20)).toBe(4)
   expect(scrollOffset(15, 2, 5, 3)).toBe(0)
+})
+
+test("colors a repo's path by segment, unless selected", async () => {
+  await makeRepo(join(dir, "alpha"))
+  await makeRepo(join(dir, "work/group/beta"))
+  setup = await testRender(<App root={dir} />, { width: 110, height: 12 })
+  await waitForFrame((f) => f.includes("work/group/beta") && !f.includes("loading") && !f.includes("scanning"))
+
+  const spans = () => setup!.captureSpans().lines.flatMap((line) => line.spans)
+  const fgOf = (span?: { fg: { toInts(): number[] } }) => span?.fg.toInts().slice(0, 3)
+  const colorOf = (text: string) => fgOf(spans().find((s) => s.text.includes(text)))
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  // The unselected row's branch cell, which uses the default text color.
+  const defaultColor = fgOf(spans().findLast((s) => s.text.includes("main")))
+
+  expect(defaultColor).not.toEqual(rgb(COLORS.dim))
+  expect(colorOf("alpha")).toEqual(rgb(COLORS.selectedFg))
+  expect(colorOf("work/")).toEqual(rgb(COLORS.dim))
+  expect(colorOf("group/")).toEqual(defaultColor)
+  expect(colorOf("beta")).toEqual(rgb(COLORS.accent))
+
+  await press(() => setup!.mockInput.pressKey("j"))
+  expect(colorOf("alpha")).toEqual(rgb(COLORS.accent))
+  expect(colorOf("work/group/beta")).toEqual(rgb(COLORS.selectedFg))
+})
+
+describe("nameParts", () => {
+  const row = (kind: Row["kind"], name: string) => ({ kind, name, prefix: "", suffix: "" }) as Row
+
+  test("splits a repo into parents, owner and name", () => {
+    expect(nameParts(row("repo", "work/acme/tools/api"), 30)).toMatchObject({
+      parent: "work/acme/",
+      owner: "tools/",
+      name: "api",
+    })
+  })
+
+  test("treats the first of two segments as the owner", () => {
+    expect(nameParts(row("repo", "acme/api"), 20)).toMatchObject({ parent: "", owner: "acme/", name: "api" })
+  })
+
+  test("treats a repo with no parent folder as all name", () => {
+    expect(nameParts(row("repo", "sandbox"), 20)).toMatchObject({ parent: "", owner: "", name: "sandbox" })
+  })
+
+  test("leaves worktree names whole", () => {
+    expect(nameParts(row("worktree", "../api-hotfix"), 20)).toMatchObject({
+      parent: "",
+      owner: "",
+      name: "../api-hotfix",
+    })
+  })
+
+  test("keeps the split in place when the name is truncated", () => {
+    expect(nameParts(row("repo", "acme/some-long-name"), 10)).toMatchObject({ owner: "acme/", name: "some…" })
+  })
+
+  test("shows only owner text when truncation reaches the owner", () => {
+    expect(nameParts(row("repo", "organization/api"), 8)).toMatchObject({ parent: "", owner: "organiz…", name: "" })
+    expect(nameParts(row("repo", "acme/api"), 5)).toMatchObject({ parent: "", owner: "acme…", name: "" })
+  })
+
+  test("shows only parent text when truncation reaches the parents", () => {
+    expect(nameParts(row("repo", "some-long-parent/acme/api"), 8)).toMatchObject({
+      parent: "some-lo…",
+      owner: "",
+      name: "",
+    })
+  })
+
+  test("keeps the total width constant", () => {
+    const parts = nameParts({ ...row("repo", "work/acme/api"), prefix: "▸ ", suffix: " (2)" }, 20)
+    expect(Bun.stringWidth(parts.prefix + parts.parent + parts.owner + parts.name + parts.suffix)).toBe(20)
+  })
 })
 
 test("columnWidths fill the terminal when there's room", () => {
