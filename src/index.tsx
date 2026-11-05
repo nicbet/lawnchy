@@ -6,12 +6,13 @@ import { version } from "../package.json"
 import { App } from "./App.tsx"
 import { configPath } from "./config.ts"
 
-const USAGE = `Usage: lawnchy [directory]
+const USAGE = `Usage: lawnchy [-b] [directory]
 
 Finds every git repository under a directory (default: the current one) and
 shows its status, with other worktrees and branches as sub-rows.
 
 Options:
+  -b             Start with boring repos hidden
   -h, --help     Show this help
   -v, --version  Show the version
 
@@ -35,11 +36,12 @@ if (args.includes("-v") || args.includes("--version")) {
   console.log(version)
   process.exit(0)
 }
-if (args.length > 1 || args[0]?.startsWith("-")) {
+const positional = args.filter((arg) => arg !== "-b")
+if (positional.length > 1 || positional[0]?.startsWith("-")) {
   console.error(USAGE)
   process.exit(1)
 }
 
-const root = await resolveRoot(args[0])
+const root = await resolveRoot(positional[0])
 const renderer = await createCliRenderer()
-createRoot(renderer).render(<App root={root} />)
+createRoot(renderer).render(<App root={root} initialHideBoring={args.includes("-b")} />)

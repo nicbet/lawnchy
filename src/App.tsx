@@ -212,16 +212,18 @@ export function App({
   root,
   openInLazygit = runLazygit,
   launchService = realLaunchService,
+  initialHideBoring = false,
 }: {
   root: string
   openInLazygit?: typeof runLazygit
   launchService?: typeof realLaunchService
+  initialHideBoring?: boolean
 }) {
   const renderer = useRenderer()
   const { width, height } = useTerminalDimensions()
   const { repos, scanning, refresh } = useRepos(root)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  const [hideBoring, setHideBoring] = useState(false)
+  const [hideBoring, setHideBoring] = useState(initialHideBoring)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const lastIndex = useRef(0)
   const offset = useRef(0)
