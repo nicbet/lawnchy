@@ -62,10 +62,12 @@ Each folder containing a `.git` directory gets a row showing its trunk. Below it
 
 | Shown | Meaning |
 | --- | --- |
-| `✓ in sync` | Matches its upstream |
+| `✓` | Matches its upstream |
 | `↑2 ↓1` | 2 commits ahead, 1 behind |
-| `no upstream` | Nothing to compare against |
-| `upstream gone` | Its upstream branch has been deleted |
+| `—` | No upstream, so nothing to compare against |
+| `✗` | Its upstream branch has been deleted |
+
+Selecting a row with `✗` spells out the state on the detail line.
 
 ## Keys
 

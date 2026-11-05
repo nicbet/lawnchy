@@ -6,6 +6,8 @@ export const COLORS = {
   warn: "#d29922",
   bad: "#f85149",
   info: "#58a6ff",
+  /** The repo's own name. Separate from the colors above, which all report a status. */
+  accent: "#d2a8ff",
   dim: "#8b949e",
   selectedBg: "#264f78",
   selectedFg: "#ffffff",
@@ -17,9 +19,9 @@ export interface Cell {
   color?: string
 }
 
-const IN_SYNC: Cell = { text: "✓ in sync", color: COLORS.ok }
-const NO_UPSTREAM: Cell = { text: "no upstream", color: COLORS.warn }
-const UPSTREAM_GONE: Cell = { text: "upstream gone", color: COLORS.bad }
+const IN_SYNC: Cell = { text: "✓", color: COLORS.ok }
+const NO_UPSTREAM: Cell = { text: "—", color: COLORS.dim }
+const UPSTREAM_GONE: Cell = { text: "✗", color: COLORS.bad }
 
 export interface Row {
   key: string
@@ -133,8 +135,9 @@ function detailCell(path: string, status: CheckoutStatus): Cell {
   // Message first: a long path must not push it past the edge of the line.
   if (status.kind === "error") return { text: `${status.message}  ${path}`, color: COLORS.bad }
   if (status.kind === "missing") return { text: `worktree directory is missing  ${path}`, color: COLORS.bad }
-  if (status.kind === "idle") return { text: `not checked out  ${path}`, color: COLORS.dim }
-  return { text: path, color: COLORS.dim }
+  const gone = (status.kind === "ok" || status.kind === "idle") && status.sync.gone
+  const notes = [status.kind === "idle" && "not checked out", gone && "upstream gone"].filter(Boolean).join(", ")
+  return { text: notes ? `${notes}  ${path}` : path, color: COLORS.dim }
 }
 
 function openPath(path: string, status: CheckoutStatus): string | null {
@@ -227,7 +230,9 @@ export function buildRows(repos: Repo[], root: string, collapsed: ReadonlySet<st
         status: { text: "" },
         sync: syncStateCell(branch.sync),
         detail: {
-          text: branch.sync.upstream ? `${branch.name} → ${branch.sync.upstream}` : `${branch.name} has no upstream`,
+          text: branch.sync.upstream
+            ? `${branch.name} → ${branch.sync.upstream}${branch.sync.gone ? " (gone)" : ""}`
+            : `${branch.name} has no upstream`,
           color: COLORS.dim,
         },
         openPath: repo.path,
@@ -286,7 +291,8 @@ export function spreadEvenly(items: string[], width: number): string {
 }
 
 const STATUS_WIDTH = 16
-const SYNC_WIDTH = 13
+/** Fits "↑999 ↓999". */
+const SYNC_WIDTH = 9
 const GAPS = 3
 
 export function columnWidths(total: number) {
@@ -296,12 +302,28 @@ export function columnWidths(total: number) {
   return { name, branch, status: STATUS_WIDTH, sync: SYNC_WIDTH }
 }
 
-/** Fits the prefix + name + suffix into the name column, truncating only the name. */
-export function nameParts(row: Row, width: number): { prefix: string; name: string; suffix: string } {
+/**
+ * Fits the prefix + name + suffix into the name column, truncating only the name.
+ * A repo's path is split into its parent folders, owner (second-to-last segment, as in
+ * GitHub's owner/repo) and name (last segment). The split comes from the full path, so
+ * truncation empties the later parts rather than moving them to the wrong segment.
+ */
+export function nameParts(
+  row: Row,
+  width: number,
+): { prefix: string; parent: string; owner: string; name: string; suffix: string } {
   const room = Math.max(0, width - Bun.stringWidth(row.prefix) - Bun.stringWidth(row.suffix))
-  const name = fit(row.name, room).trimEnd()
-  const padding = " ".repeat(Math.max(0, room - Bun.stringWidth(name)))
-  return { prefix: row.prefix, name, suffix: row.suffix + padding }
+  const shown = fit(row.name, room).trimEnd()
+  const padding = " ".repeat(Math.max(0, room - Bun.stringWidth(shown)))
+  const nameStart = row.kind === "repo" ? row.name.lastIndexOf("/") + 1 : 0
+  const ownerStart = nameStart > 0 ? row.name.lastIndexOf("/", nameStart - 2) + 1 : 0
+  return {
+    prefix: row.prefix,
+    parent: shown.slice(0, ownerStart),
+    owner: shown.slice(ownerStart, nameStart),
+    name: shown.slice(nameStart),
+    suffix: row.suffix + padding,
+  }
 }
 
 /** Returns the scroll offset that keeps `selected` visible with minimal movement. */

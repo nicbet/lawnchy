@@ -55,13 +55,15 @@ function Rule({ width }: { width: number }) {
 
 function RowLine({ row, width, selected }: { row: Row; width: number; selected: boolean }) {
   const columns = columnWidths(width)
-  const { prefix, name, suffix } = nameParts(row, columns.name)
+  const { prefix, parent, owner, name, suffix } = nameParts(row, columns.name)
   const main = selected ? COLORS.selectedFg : undefined
   return (
     <box height={1} backgroundColor={selected ? COLORS.selectedBg : undefined}>
       <text wrapMode="none">
         <span fg={selected ? main : COLORS.dim}>{prefix}</span>
-        <span fg={main}>{name}</span>
+        <span fg={selected ? main : COLORS.dim}>{parent}</span>
+        <span fg={main}>{owner}</span>
+        <span fg={main ?? (row.kind === "repo" ? COLORS.accent : undefined)}>{name}</span>
         <span fg={selected ? main : COLORS.warn}>{suffix}</span>
         <span> </span>
         <span fg={main ?? row.branch.color}>{fit(row.branch.text, columns.branch)}</span>
