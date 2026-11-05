@@ -10,7 +10,7 @@ Notable changes to lawnchy. The format follows [Keep a Changelog](https://keepac
 - Separate status and sync columns, covering working tree changes and upstream state
 - Folding, keyboard navigation, and rescanning with `r`
 - Filtering with `/`, by regular expression or plain string
-- Hiding repos with nothing to act on with `b`
+- Hiding repos with nothing to act on with `b`, or from launch with `-b`
 - Opening the highlighted row in lazygit with `Enter` or `o`
 - Running a coding agent in the highlighted folder with `a`, or choosing one with `A`
 - A launch dialog on `x`, with one-key launchers defined in the config file and a built-in terminal

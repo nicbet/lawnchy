@@ -122,6 +122,31 @@ test("b hides boring repos and shows them again", async () => {
   expect(shown).not.toContain("hidden")
 })
 
+test("can start with boring repos hidden, and b still shows them", async () => {
+  await makeRepo(join(dir, "quiet"))
+  const busy = await makeRepo(join(dir, "busy"))
+  await writeFile(join(busy, "file.txt"), "changed\n")
+
+  setup = await testRender(<App root={dir} initialHideBoring />, { width: 110, height: 12 })
+  const hidden = await waitForFrame((f) => f.includes("2 repos (1 boring hidden)") && !f.includes("scanning"))
+  expect(hidden).toContain("busy")
+  expect(hidden).not.toContain("quiet")
+
+  await press(() => setup!.mockInput.pressKey("b"))
+  const shown = setup.captureCharFrame()
+  expect(shown).toContain("quiet")
+  expect(shown).not.toContain("hidden")
+})
+
+test("the command line rejects anything it doesn't know, alongside -b", () => {
+  const entry = join(import.meta.dir, "../src/index.tsx")
+  for (const args of [["-b", "--nope"], ["-b", "one", "two"]]) {
+    const result = Bun.spawnSync(["bun", "run", entry, ...args], { stdout: "pipe", stderr: "pipe" })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.toString()).toContain("Usage: lawnchy [-b] [directory]")
+  }
+})
+
 test("says so when every repo is hidden, rather than claiming none exist", async () => {
   await makeRepo(join(dir, "quiet"))
   setup = await testRender(<App root={dir} />, { width: 110, height: 12 })

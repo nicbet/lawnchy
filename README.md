@@ -92,7 +92,7 @@ Press `/` and type. The list narrows as you go, matching the repo's path as list
 
 ### Boring repos
 
-Press `b` to hide a repo when all of these are true:
+Press `b`, or start with `lawnchy -b`, to hide a repo when all of these are true:
 
 - Its trunk has no changes, and isn't ahead of, behind or missing its upstream
 - It has no other checkouts
