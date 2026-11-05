@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in lawnchy doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you saw. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: lawnchy version
+      description: The output of `lawnchy --version`
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, terminal, and multiplexer if any
+      placeholder: macOS 15, Ghostty, tmux
+    validations:
+      required: true
+  - type: textarea
+    id: repo-state
+    attributes:
+      label: Repository state
+      description: If a row looks wrong, the output of `git status --porcelain=v2 --branch` and `git worktree list --porcelain` for that repo. Remove anything private.

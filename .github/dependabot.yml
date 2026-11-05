@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      opentui:
+        patterns: ["@opentui/*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

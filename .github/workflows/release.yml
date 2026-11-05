@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { runner: macos-latest, target: darwin-arm64 }
+          - { runner: ubuntu-latest, target: linux-x64 }
+          - { runner: ubuntu-24.04-arm, target: linux-arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Check the tag matches package.json
+        env:
+          TAG: ${{ github.ref_name }}
+        run: test "$TAG" = "v$(bun -p 'require("./package.json").version')"
+      - run: bun install --frozen-lockfile
+      - run: make test
+      - run: make build
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+        run: tar -czf "lawnchy-$TARGET.tar.gz" -C dist lawnchy -C .. LICENSE README.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: lawnchy-${{ matrix.target }}
+          path: lawnchy-${{ matrix.target }}.tar.gz
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+      - run: sha256sum lawnchy-*.tar.gz > checksums.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: |
+            lawnchy-*.tar.gz
+            checksums.txt
